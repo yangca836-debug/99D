@@ -1,0 +1,549 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+local CONFIG = {
+	FarmDistance = 35,          
+	LoopCooldown = 0.03,        
+	LowHealthThreshold = 20,    
+	EscapeCooldown = 12,        
+	DropCFrame = CFrame.new(0.685610592, 12.7210665, -1.01981413, -0.333577901, -3.59216372e-08, -0.942722559, -6.71524836e-09, 1, -3.57279859e-08, 0.942722559, -5.5874505e-09, -0.333577901),
+	FireCFrame = CFrame.new(20.3575974, 13.6328154, -5.57021952, -0.963129997, 3.49026124e-08, 0.269036472, 2.53018229e-08, 1, -3.91533135e-08, -0.269036472, -3.09026191e-08, -0.963129997),
+	CarrotBerryCFrame = CFrame.new(-3.6540091, 3.99999976, -13.4546804, 0.712164819, 6.33856914e-08, -0.7020123, -6.16689846e-08, 1, 2.77305823e-08, 0.7020123, 2.35436417e-08, 0.712164819)
+}
+
+local state = {
+	isAutoFarmMaster = false,   
+	
+	subFeatures = {
+		AutoCutTree = true,     
+		TeleportLog = true,     
+		TeleportFood = true,    
+		TeleportFire = true,    
+		TeleportMeat = true,    
+	},
+
+	isKillEnabled = false,      
+	isEscapeEnabled = true,     
+	isNoDarkEnabled = true,     
+	isRunning = true,
+	statusText = nil,
+	lastEscapeTick = 0,
+	fireDropPercentage = 50,
+}
+
+local originalLighting = {
+	Brightness = Lighting.Brightness,
+	ClockTime = Lighting.ClockTime,
+	FogEnd = Lighting.FogEnd,
+	GlobalShadows = Lighting.GlobalShadows,
+	OutdoorAmbient = Lighting.OutdoorAmbient,
+	Ambient = Lighting.Ambient
+}
+
+local rangeAdornment = Instance.new("CylinderHandleAdornment")
+rangeAdornment.Name = "FarmRangeVisualizer"
+rangeAdornment.Adornee = Workspace
+rangeAdornment.Radius = CONFIG.FarmDistance
+rangeAdornment.Height = 0.2
+rangeAdornment.Color3 = Color3.fromRGB(46, 204, 113)
+rangeAdornment.Transparency = 0.5
+rangeAdornment.AlwaysOnTop = true
+rangeAdornment.Visible = false
+rangeAdornment.Parent = Workspace
+
+local function ApplyNoDarkness(enabled)
+	pcall(function()
+		if enabled then
+			Lighting.Brightness = 2
+			Lighting.ClockTime = 14
+			Lighting.FogEnd = 100000
+			Lighting.GlobalShadows = false
+			Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+			Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+		else
+			Lighting.Brightness = originalLighting.Brightness
+			Lighting.ClockTime = originalLighting.ClockTime
+			Lighting.FogEnd = originalLighting.FogEnd
+			Lighting.GlobalShadows = originalLighting.GlobalShadows
+			Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+			Lighting.Ambient = originalLighting.Ambient
+		end
+	end)
+end
+
+local function SetupUI()
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "AutoFarmGroupGui"
+	screenGui.ResetOnSpawn = false
+	screenGui.Parent = player:WaitForChild("PlayerGui")
+
+	local mainFrame = Instance.new("Frame")
+	mainFrame.Name = "MainFrame"
+	mainFrame.Size = UDim2.new(0, 380, 0, 370)
+	mainFrame.Position = UDim2.new(0.5, -190, 0.5, -185)
+	mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	mainFrame.BorderSizePixel = 0
+	mainFrame.Parent = screenGui
+
+	local mainCorner = Instance.new("UICorner")
+	mainCorner.CornerRadius = UDim.new(0, 10)
+	mainCorner.Parent = mainFrame
+
+	local topBar = Instance.new("Frame")
+	topBar.Name = "TopBar"
+	topBar.Size = UDim2.new(1, 0, 0, 40)
+	topBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	topBar.BorderSizePixel = 0
+	topBar.Parent = mainFrame
+
+	local topCorner = Instance.new("UICorner")
+	topCorner.CornerRadius = UDim.new(0, 10)
+	topCorner.Parent = topBar
+
+	local fixCorner = Instance.new("Frame")
+	fixCorner.Size = UDim2.new(1, 0, 0, 10)
+	fixCorner.Position = UDim2.new(0, 0, 1, -10)
+	fixCorner.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	fixCorner.BorderSizePixel = 0
+	fixCorner.Parent = topBar
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, -50, 1, 0)
+	titleLabel.Position = UDim2.new(0, 15, 0, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextSize = 15
+	titleLabel.Font = Enum.Font.SourceSansBold
+	titleLabel.Text = "🛡️ ระบบช่วยเล่นอัตโนมัติ"
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = topBar
+
+	local minimizeBtn = Instance.new("TextButton")
+	minimizeBtn.Name = "MinimizeButton"
+	minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+	minimizeBtn.Position = UDim2.new(1, -35, 0.5, -15)
+	minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	minimizeBtn.TextSize = 18
+	minimizeBtn.Font = Enum.Font.SourceSansBold
+	minimizeBtn.Text = "-"
+	minimizeBtn.Parent = topBar
+
+	local minCorner = Instance.new("UICorner")
+	minCorner.CornerRadius = UDim.new(0, 6)
+	minCorner.Parent = minimizeBtn
+
+	local contentContainer = Instance.new("Frame")
+	contentContainer.Name = "ContentContainer"
+	contentContainer.Size = UDim2.new(1, 0, 1, -40)
+	contentContainer.Position = UDim2.new(0, 0, 0, 40)
+	contentContainer.BackgroundTransparency = 1
+	contentContainer.Parent = mainFrame
+
+	local dragging, dragInput, dragStart, startPos
+	topBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = mainFrame.Position
+			
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			if dragging then
+				local delta = input.Position - dragStart
+				mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			end
+		end
+	end)
+
+	local isMinimized = false
+	minimizeBtn.MouseButton1Click:Connect(function()
+		isMinimized = not isMinimized
+		if isMinimized then
+			minimizeBtn.Text = "+"
+			contentContainer.Visible = false
+			mainFrame.Size = UDim2.new(0, 380, 0, 40)
+		else
+			minimizeBtn.Text = "-"
+			contentContainer.Visible = true
+			mainFrame.Size = UDim2.new(0, 380, 0, 370)
+		end
+	end)
+
+	local function createSectionTitle(text, posY, posX)
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.new(0, 160, 0, 20)
+		lbl.Position = UDim2.new(0, posX, 0, posY)
+		lbl.BackgroundTransparency = 1
+		lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+		lbl.TextSize = 13
+		lbl.Font = Enum.Font.SourceSansBold
+		lbl.Text = text
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.Parent = contentContainer
+		return lbl
+	end
+
+	local function createButton(name, text, posX, posY, defaultColor)
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Size = UDim2.new(0, 165, 0, 30)
+		btn.Position = UDim2.new(0, posX, 0, posY)
+		btn.BackgroundColor3 = defaultColor
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.TextSize = 12
+		btn.Font = Enum.Font.SourceSansBold
+		btn.Text = text
+		btn.Parent = contentContainer
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = btn
+		return btn
+	end
+
+	createSectionTitle("⚙️ ระบบทั่วไป", 10, 15)
+	local btnKill = createButton("BtnKill", "ฆ่ามอนสเตอร์: ปิด", 15, 35, Color3.fromRGB(45, 45, 45))
+	local btnEscape = createButton("BtnEscape", "หนีเลือดน้อย: เปิด", 15, 72, Color3.fromRGB(46, 204, 113))
+	local btnNoDark = createButton("BtnNoDark", "แก้ความมืด: เปิด", 15, 109, Color3.fromRGB(46, 204, 113))
+
+	local percentBox = Instance.new("TextBox")
+	percentBox.Name = "PercentBox"
+	percentBox.Size = UDim2.new(0, 165, 0, 30)
+	percentBox.Position = UDim2.new(0, 15, 0, 146)
+	percentBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	percentBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	percentBox.TextSize = 12
+	percentBox.Font = Enum.Font.SourceSansBold
+	percentBox.Text = "ดรอปกองไฟ: 50%"
+	percentBox.ClearTextOnFocus = false
+	percentBox.Parent = contentContainer
+
+	local uiCornerPercent = Instance.new("UICorner")
+	uiCornerPercent.CornerRadius = UDim.new(0, 6)
+	uiCornerPercent.Parent = percentBox
+
+	createSectionTitle("🌲 Auto Farm (หลัก)", 10, 200)
+	local btnAutoFarmMaster = createButton("BtnAutoFarmMaster", "Auto Farm: ปิด", 200, 35, Color3.fromRGB(192, 57, 43))
+
+	createSectionTitle("📌 ฟังก์ชันย่อย Auto Farm", 72, 200)
+	local btnSubCutTree = createButton("BtnSubCutTree", "ตัดไม้อัตโนมัติ: เปิด", 200, 95, Color3.fromRGB(46, 204, 113))
+	local btnSubLog = createButton("BtnSubLog", "วาร์ปท่อนไม้: เปิด", 200, 132, Color3.fromRGB(46, 204, 113))
+	local btnSubFood = createButton("BtnSubFood", "วาร์ปอาหาร: เปิด", 200, 169, Color3.fromRGB(46, 204, 113))
+	local btnSubFire = createButton("BtnSubFire", "วาร์ปกองไฟ: เปิด", 200, 206, Color3.fromRGB(46, 204, 113))
+	local btnSubMeat = createButton("BtnSubMeat", "วาร์ปเนื้อสัตว์: เปิด", 200, 243, Color3.fromRGB(46, 204, 113))
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Size = UDim2.new(0, 230, 0, 30)
+	statusLabel.Position = UDim2.new(0, 15, 0, 285)
+	statusLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	statusLabel.TextSize = 12
+	statusLabel.Font = Enum.Font.SourceSans
+	statusLabel.Text = "สถานะ: พร้อมใช้งาน"
+	statusLabel.Parent = contentContainer
+	state.statusText = statusLabel
+
+	local uiCornerStatus = Instance.new("UICorner")
+	uiCornerStatus.CornerRadius = UDim.new(0, 6)
+	uiCornerStatus.Parent = statusLabel
+
+	local deleteButton = createButton("BtnDelete", "ปิดสคริปต์", 255, 285, Color3.fromRGB(192, 57, 43))
+	deleteButton.Size = UDim2.new(0, 110, 0, 30)
+
+	btnAutoFarmMaster.MouseButton1Click:Connect(function()
+		state.isAutoFarmMaster = not state.isAutoFarmMaster
+		btnAutoFarmMaster.Text = state.isAutoFarmMaster and "Auto Farm: เปิด" or "Auto Farm: ปิด"
+		btnAutoFarmMaster.BackgroundColor3 = state.isAutoFarmMaster and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(192, 57, 43)
+		rangeAdornment.Visible = state.isAutoFarmMaster or state.isKillEnabled
+	end)
+
+	btnSubCutTree.MouseButton1Click:Connect(function()
+		state.subFeatures.AutoCutTree = not state.subFeatures.AutoCutTree
+		btnSubCutTree.Text = state.subFeatures.AutoCutTree and "ตัดไม้อัตโนมัติ: เปิด" or "ตัดไม้อัตโนมัติ: ปิด"
+		btnSubCutTree.BackgroundColor3 = state.subFeatures.AutoCutTree and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+	end)
+
+	btnSubLog.MouseButton1Click:Connect(function()
+		state.subFeatures.TeleportLog = not state.subFeatures.TeleportLog
+		btnSubLog.Text = state.subFeatures.TeleportLog and "วาร์ปท่อนไม้: เปิด" or "วาร์ปท่อนไม้: ปิด"
+		btnSubLog.BackgroundColor3 = state.subFeatures.TeleportLog and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+	end)
+
+	btnSubFood.MouseButton1Click:Connect(function()
+		state.subFeatures.TeleportFood = not state.subFeatures.TeleportFood
+		btnSubFood.Text = state.subFeatures.TeleportFood and "วาร์ปอาหาร: เปิด" or "วาร์ปอาหาร: ปิด"
+		btnSubFood.BackgroundColor3 = state.subFeatures.TeleportFood and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+	end)
+
+	btnSubFire.MouseButton1Click:Connect(function()
+		state.subFeatures.TeleportFire = not state.subFeatures.TeleportFire
+		btnSubFire.Text = state.subFeatures.TeleportFire and "วาร์ปกองไฟ: เปิด" or "วาร์ปกองไฟ: ปิด"
+		btnSubFire.BackgroundColor3 = state.subFeatures.TeleportFire and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+	end)
+
+	btnSubMeat.MouseButton1Click:Connect(function()
+		state.subFeatures.TeleportMeat = not state.subFeatures.TeleportMeat
+		btnSubMeat.Text = state.subFeatures.TeleportMeat and "วาร์ปเนื้อสัตว์: เปิด" or "วาร์ปเนื้อสัตว์: ปิด"
+		btnSubMeat.BackgroundColor3 = state.subFeatures.TeleportMeat and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+	end)
+
+	percentBox.FocusLost:Connect(function()
+		local num = tonumber(percentBox.Text:match("%d+"))
+		if num then
+			if num < 0 then num = 0 end
+			if num > 100 then num = 100 end
+			state.fireDropPercentage = num
+			percentBox.Text = "ดรอปกองไฟ: " .. num .. "%"
+		else
+			percentBox.Text = "ดรอปกองไฟ: " .. state.fireDropPercentage .. "%"
+		end
+	end)
+
+	btnKill.MouseButton1Click:Connect(function()
+		state.isKillEnabled = not state.isKillEnabled
+		btnKill.Text = state.isKillEnabled and "ฆ่ามอนสเตอร์: เปิด" or "ฆ่ามอนสเตอร์: ปิด"
+		btnKill.BackgroundColor3 = state.isKillEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+		rangeAdornment.Visible = state.isAutoFarmMaster or state.isKillEnabled
+	end)
+
+	btnEscape.MouseButton1Click:Connect(function()
+		state.isEscapeEnabled = not state.isEscapeEnabled
+		btnEscape.Text = state.isEscapeEnabled and "หนีเลือดน้อย: เปิด" or "หนีเลือดน้อย: ปิด"
+		btnEscape.BackgroundColor3 = state.isEscapeEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+	end)
+
+	btnNoDark.MouseButton1Click:Connect(function()
+		state.isNoDarkEnabled = not state.isNoDarkEnabled
+		btnNoDark.Text = state.isNoDarkEnabled and "แก้ความมืด: เปิด" or "แก้ความมืด: ปิด"
+		btnNoDark.BackgroundColor3 = state.isNoDarkEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
+		ApplyNoDarkness(state.isNoDarkEnabled)
+	end)
+
+	deleteButton.MouseButton1Click:Connect(function()
+		state.isRunning = false
+		state.isAutoFarmMaster = false
+		state.isKillEnabled = false
+		state.isEscapeEnabled = false
+		state.isNoDarkEnabled = false
+		rangeAdornment:Destroy()
+		ApplyNoDarkness(false)
+		screenGui:Destroy()
+	end)
+end
+
+local function UpdateStatus(text, color)
+	if state.statusText then
+		state.statusText.Text = text
+		if color then
+			state.statusText.TextColor3 = color
+		end
+	end
+end
+
+local function CheckLowHealthAndSafety(rootPart, humanoid)
+	if not rootPart or not humanoid then return false end
+
+	if rootPart.Position.Y < -50 then
+		rootPart.CFrame = CONFIG.DropCFrame
+		UpdateStatus("สถานะ: ป้องกันการตกแมพ!", Color3.fromRGB(241, 196, 15))
+		task.wait(1)
+		return true
+	end
+
+	if state.isEscapeEnabled and humanoid.Health > 0 and humanoid.Health <= CONFIG.LowHealthThreshold then
+		local currentTime = tick()
+		if (currentTime - state.lastEscapeTick) >= CONFIG.EscapeCooldown then
+			rootPart.CFrame = CONFIG.DropCFrame
+			state.lastEscapeTick = currentTime 
+			UpdateStatus("สถานะ: เลือดน้อย! วาร์ปหนีแล้ว", Color3.fromRGB(231, 76, 60))
+			task.wait(1)
+			return true
+		end
+	end
+
+	return false
+end
+
+local function RunAutoFarm(rootPart)
+	local inventory = player:FindFirstChild("Inventory")
+	local oldAxe = inventory and inventory:FindFirstChild("Old Axe")
+	if not oldAxe then return end
+
+	local remoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+	local toolDamageRemote = remoteEvents and remoteEvents:FindFirstChild("ToolDamageObject")
+	local stopDraggingRemote = remoteEvents and remoteEvents:FindFirstChild("StopDraggingItem")
+
+	if state.subFeatures.AutoCutTree then
+		local foliage = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
+		if foliage then
+			for _, child in ipairs(foliage:GetChildren()) do
+				if child.Name == "Small Tree" or child.Name == "Birch Tree" then
+					local treePart = child:IsA("Model") and (child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")) or (child:IsA("BasePart") and child)
+					if treePart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(treePart.Position.X, 0, treePart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
+						if toolDamageRemote then
+							task.spawn(function()
+								pcall(function()
+									toolDamageRemote:InvokeServer(child, oldAxe, "91_10404440657", rootPart.CFrame, false)
+								end)
+							end)
+						end
+					end
+				end
+			end
+		end
+	end
+
+	local itemsFolder = Workspace:FindFirstChild("Items")
+	if itemsFolder then
+		for _, item in ipairs(itemsFolder:GetChildren()) do
+			local itemName = item.Name:lower()
+			local primaryPart = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart"))
+			if primaryPart then
+				pcall(function()
+					local shouldTeleport = false
+					local targetCFrame = CONFIG.DropCFrame
+
+					if itemName == "log" and state.subFeatures.TeleportLog then
+						shouldTeleport = true
+						targetCFrame = (math.random(1, 100) <= state.fireDropPercentage) and CONFIG.FireCFrame or CONFIG.DropCFrame
+					elseif (itemName == "carrot" or itemName == "berry") and state.subFeatures.TeleportFood then
+						shouldTeleport = true
+						targetCFrame = CONFIG.CarrotBerryCFrame
+					elseif (itemName == "broken fan" or itemName == "old radio") and state.subFeatures.TeleportFire then
+						shouldTeleport = true
+						targetCFrame = CONFIG.FireCFrame
+					elseif (itemName == "coal" or itemName == "morsel" or itemName == "steak" or itemName == "raw meat" or itemName:find("meat")) and state.subFeatures.TeleportMeat then
+						shouldTeleport = true
+						targetCFrame = CONFIG.DropCFrame
+					end
+
+					if shouldTeleport then
+						item:PivotTo(targetCFrame)
+						for _, part in ipairs(item:GetDescendants()) do
+							if part:IsA("BasePart") then
+								part.Anchored = false
+								part.AssemblyLinearVelocity = Vector3.new(0, -25, 0)
+							end
+						end
+					end
+				end)
+			end
+
+			if stopDraggingRemote then
+				pcall(function()
+					stopDraggingRemote:FireServer(item)
+				end)
+			end
+		end
+	end
+end
+
+local function RunKillMonster(rootPart)
+	local inventory = player:FindFirstChild("Inventory")
+	local oldAxe = inventory and inventory:FindFirstChild("Old Axe")
+	if not oldAxe then return end
+
+	local remoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+	local toolDamageRemote = remoteEvents and remoteEvents:FindFirstChild("ToolDamageObject")
+
+	local charactersFolder = Workspace:FindFirstChild("Characters")
+	if charactersFolder then
+		for _, charModel in ipairs(charactersFolder:GetChildren()) do
+			if charModel.Name == "Bunny" or charModel.Name == "Bee" or charModel.Name == "Wolf" or charModel.Name == "Cultist" then
+				local targetPart = charModel:IsA("Model") and (charModel.PrimaryPart or charModel:FindFirstChildWhichIsA("BasePart")) or (charModel:IsA("BasePart") and child)
+				if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
+					if toolDamageRemote then
+						task.spawn(function()
+							pcall(function()
+								local stringID = (charModel.Name == "Cultist") and "4_10404440657" or "91_10404440657"
+								toolDamageRemote:InvokeServer(charModel, oldAxe, stringID, rootPart.CFrame, false)
+							end)
+						end)
+					end
+				end
+			end
+		end
+	end
+
+	-- โค้ดสำหรับ Crossbow Cultist ตามที่ระบุ
+	local crossbowCultist = charactersFolder and charactersFolder:FindFirstChild("Crossbow Cultist")
+	if crossbowCultist and oldAxe and toolDamageRemote then
+		local targetPart = crossbowCultist:IsA("Model") and (crossbowCultist.PrimaryPart or crossbowCultist:FindFirstChildWhichIsA("BasePart"))
+		if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
+			task.spawn(function()
+				pcall(function()
+					local args = {
+						crossbowCultist,
+						oldAxe,
+						"10_10404440657",
+						rootPart.CFrame,
+						false
+					}
+					toolDamageRemote:InvokeServer(unpack(args))
+				end)
+			end)
+		end
+	end
+end
+
+ApplyNoDarkness(true)
+
+task.spawn(function()
+	while state.isRunning do
+		pcall(function()
+			if state.isNoDarkEnabled then
+				Lighting.Brightness = 2
+				Lighting.ClockTime = 14
+				Lighting.GlobalShadows = false
+			end
+
+			local char = player.Character or player.CharacterAdded:Wait()
+			local rootPart = char:FindFirstChild("HumanoidRootPart")
+			local humanoid = char:FindFirstChild("Humanoid")
+
+			if not rootPart or not humanoid then return end
+
+			rangeAdornment.CFrame = rootPart.CFrame * CFrame.new(0, -rootPart.Size.Y/2, 0) * CFrame.Angles(math.rad(90), 0, 0)
+
+			if CheckLowHealthAndSafety(rootPart, humanoid) then
+			return
+			end
+
+			local isWorking = false
+
+			if state.isAutoFarmMaster and humanoid.Health > 0 then
+				RunAutoFarm(rootPart)
+				isWorking = true
+			end
+
+			if state.isKillEnabled and humanoid.Health > 0 then
+				RunKillMonster(rootPart)
+				isWorking = true
+			end
+
+			if isWorking then
+				UpdateStatus("สถานะ: กำลังทำงานอัตโนมัติ...", Color3.fromRGB(46, 204, 113))
+			else
+				UpdateStatus("สถานะ: พักการทำงาน (หยุดชั่วคราว)", Color3.fromRGB(189, 195, 199))
+			end
+		end)
+		
+		task.wait(CONFIG.LoopCooldown)
+	end
+end)
+
+SetupUI()
