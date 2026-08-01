@@ -4,8 +4,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
+local RUNNING = true
 
 local CONFIG = {
 	FarmDistance = 35,          
@@ -42,7 +45,7 @@ rangeAdornment.Name = "FarmRangeVisualizer"
 rangeAdornment.Adornee = Workspace
 rangeAdornment.Radius = CONFIG.FarmDistance
 rangeAdornment.Height = 0.2
-rangeAdornment.Color3 = Color3.fromRGB(46, 204, 113)
+rangeAdornment.Color3 = Color3.fromRGB(255, 110, 50)
 rangeAdornment.Transparency = 0.5
 rangeAdornment.AlwaysOnTop = true
 rangeAdornment.Visible = false
@@ -68,7 +71,6 @@ local function ApplyNoDarkness(enabled)
 	end)
 end
 
--- ฟังก์ชันวาร์ปทีละ 3 ชิ้น พร้อมแก้ไขให้ตกลงสู่พื้นอย่างแน่นอน 100%
 local function TriggerTeleport(filterType)
 	local itemsFolder = Workspace:FindFirstChild("Items")
 	local stopDraggingRemote = ReplicatedStorage:FindFirstChild("RemoteEvents") and ReplicatedStorage.RemoteEvents:FindFirstChild("StopDraggingItem")
@@ -102,7 +104,7 @@ local function TriggerTeleport(filterType)
 				elseif filterType == "Coal" then
 					if itemName == "coal" then
 						shouldTeleport = true
-						targetCFrame = CONFIG.DropCFrame -- ถ่านไปที่เดียวกับเนื้อ
+						targetCFrame = CONFIG.DropCFrame
 					end
 				elseif filterType == "Meat" then
 					if itemName == "morsel" or itemName == "steak" or itemName == "raw meat" or itemName:find("meat") then
@@ -117,7 +119,6 @@ local function TriggerTeleport(filterType)
 			end
 		end
 
-		-- จำกัดครั้งละ 3 ชิ้น
 		local limitCount = math.min(3, #targetItems)
 		
 		task.spawn(function()
@@ -127,7 +128,6 @@ local function TriggerTeleport(filterType)
 					local item = data.item
 					local targetCFrame = data.targetCFrame
 
-					-- ปลดล็อกและเคลียร์ค่าความเร็วก่อนวาร์ป
 					for _, part in ipairs(item:GetDescendants()) do
 						if part:IsA("BasePart") then
 							part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -137,7 +137,6 @@ local function TriggerTeleport(filterType)
 						end
 					end
 
-					-- ย้ายตำแหน่งไอเทม
 					if item:IsA("Model") then
 						item:PivotTo(targetCFrame)
 					elseif item:IsA("BasePart") then
@@ -148,7 +147,6 @@ local function TriggerTeleport(filterType)
 						stopDraggingRemote:FireServer(item)
 					end
 
-					-- กระตุ้นให้ไอเทมตกลงพื้นโดยการดันลงด้านล่างเล็กน้อยและปลดล็อก
 					task.defer(function()
 						task.wait(0.05)
 						for _, part in ipairs(item:GetDescendants()) do
@@ -169,270 +167,327 @@ local function TriggerTeleport(filterType)
 	return count
 end
 
+local function tween(obj, props, time)
+	TweenService:Create(obj, TweenInfo.new(time or 0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), props):Play()
+end
+
 local function SetupUI()
 	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "AutoFarmFinalGui"
+	screenGui.Name = "StarfishHub_AutoFarm"
 	screenGui.ResetOnSpawn = false
-	screenGui.Parent = player:WaitForChild("PlayerGui")
+	screenGui.Parent = CoreGui
 
-	local mainFrame = Instance.new("Frame")
-	mainFrame.Name = "MainFrame"
-	mainFrame.Size = UDim2.new(0, 380, 0, 410)
-	mainFrame.Position = UDim2.new(0.5, -190, 0.5, -205)
-	mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-	mainFrame.BorderSizePixel = 0
-	mainFrame.Parent = screenGui
+	local Main = Instance.new("Frame", screenGui)
+	Main.Size = UDim2.new(0, 280, 0, 340)
+	Main.Position = UDim2.new(0.5, -140, 0.5, -170)
+	Main.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+	Main.BorderSizePixel = 0
+	Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 
-	local mainCorner = Instance.new("UICorner")
-	mainCorner.CornerRadius = UDim.new(0, 10)
-	mainCorner.Parent = mainFrame
+	local Glow = Instance.new("UIStroke", Main)
+	Glow.Color = Color3.fromRGB(255, 110, 50)
+	Glow.Thickness = 1.2
+	Glow.Transparency = 0.6
 
-	local topBar = Instance.new("Frame")
-	topBar.Name = "TopBar"
-	topBar.Size = UDim2.new(1, 0, 0, 40)
-	topBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	topBar.BorderSizePixel = 0
-	topBar.Parent = mainFrame
+	local TopBar = Instance.new("Frame", Main)
+	TopBar.Size = UDim2.new(1, 0, 0, 32)
+	TopBar.BackgroundTransparency = 1
 
-	local topCorner = Instance.new("UICorner")
-	topCorner.CornerRadius = UDim.new(0, 10)
-	topCorner.Parent = topBar
+	local Title = Instance.new("TextLabel", TopBar)
+	Title.Size = UDim2.new(1, -70, 1, 0)
+	Title.Position = UDim2.new(0, 10, 0, 0)
+	Title.Text = "STARFISH HUB"
+	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Title.Font = Enum.Font.GothamBlack
+	Title.TextSize = 11
+	Title.BackgroundTransparency = 1
+	Title.TextXAlignment = Enum.TextXAlignment.Left
+	local TitleGradient = Instance.new("UIGradient", Title)
+	TitleGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 180, 100)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 80, 20))
+	}
 
-	local fixCorner = Instance.new("Frame")
-	fixCorner.Size = UDim2.new(1, 0, 0, 10)
-	fixCorner.Position = UDim2.new(0, 0, 1, -10)
-	fixCorner.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	fixCorner.BorderSizePixel = 0
-	fixCorner.Parent = topBar
+	local unloadBtn = Instance.new("TextButton", TopBar)
+	unloadBtn.Name = "UnloadButton"
+	unloadBtn.Size = UDim2.new(0, 24, 0, 24)
+	unloadBtn.Position = UDim2.new(1, -56, 0.5, -12)
+	unloadBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	unloadBtn.TextColor3 = Color3.fromRGB(231, 76, 60)
+	unloadBtn.TextSize = 11
+	unloadBtn.Font = Enum.Font.GothamBold
+	unloadBtn.Text = "X"
+	unloadBtn.BorderSizePixel = 0
+	Instance.new("UICorner", unloadBtn).CornerRadius = UDim.new(0, 6)
+	local unloadStroke = Instance.new("UIStroke", unloadBtn)
+	unloadStroke.Color = Color3.fromRGB(231, 76, 60)
+	unloadStroke.Transparency = 0.5
 
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -50, 1, 0)
-	titleLabel.Position = UDim2.new(0, 15, 0, 0)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	titleLabel.TextSize = 13
-	titleLabel.Font = Enum.Font.SourceSansBold
-	titleLabel.Text = "🛡️ ระบบช่วยเล่นอัตโนมัติ (เวอร์ชันสมบูรณ์)"
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Parent = topBar
+	unloadBtn.MouseButton1Click:Connect(function()
+		state.isRunning = false
+		ApplyNoDarkness(false)
+		if rangeAdornment then
+			rangeAdornment:Destroy()
+		end
+		screenGui:Destroy()
+	end)
 
-	local minimizeBtn = Instance.new("TextButton")
+	local minimizeBtn = Instance.new("TextButton", TopBar)
 	minimizeBtn.Name = "MinimizeButton"
-	minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-	minimizeBtn.Position = UDim2.new(1, -35, 0.5, -15)
-	minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-	minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	minimizeBtn.TextSize = 18
-	minimizeBtn.Font = Enum.Font.SourceSansBold
+	minimizeBtn.Size = UDim2.new(0, 24, 0, 24)
+	minimizeBtn.Position = UDim2.new(1, -28, 0.5, -12)
+	minimizeBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	minimizeBtn.TextColor3 = Color3.fromRGB(255, 110, 50)
+	minimizeBtn.TextSize = 13
+	minimizeBtn.Font = Enum.Font.GothamBold
 	minimizeBtn.Text = "-"
-	minimizeBtn.Parent = topBar
+	minimizeBtn.BorderSizePixel = 0
+	Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 6)
+	local minStroke = Instance.new("UIStroke", minimizeBtn)
+	minStroke.Color = Color3.fromRGB(255, 110, 50)
+	minStroke.Transparency = 0.5
 
-	local minCorner = Instance.new("UICorner")
-	minCorner.CornerRadius = UDim.new(0, 6)
-	minCorner.Parent = minimizeBtn
+	local Scroll = Instance.new("ScrollingFrame", Main)
+	Scroll.Size = UDim2.new(1, 0, 1, -32)
+	Scroll.Position = UDim2.new(0, 0, 0, 32)
+	Scroll.BackgroundTransparency = 1
+	Scroll.CanvasSize = UDim2.new(0, 0, 0, 340)
+	Scroll.ScrollBarThickness = 2
+	Scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 110, 50)
 
-	local contentContainer = Instance.new("Frame")
-	contentContainer.Name = "ContentContainer"
-	contentContainer.Size = UDim2.new(1, 0, 1, -40)
-	contentContainer.Position = UDim2.new(0, 0, 0, 40)
-	contentContainer.BackgroundTransparency = 1
-	contentContainer.Parent = mainFrame
-
-	local dragging, dragStart, startPos
-	topBar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = mainFrame.Position
-			
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			if dragging then
-				local delta = input.Position - dragStart
-				mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-			end
-		end
-	end)
+	local List = Instance.new("UIListLayout", Scroll)
+	List.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	List.Padding = UDim.new(0, 4)
+	List.SortOrder = Enum.SortOrder.LayoutOrder
 
 	local isMinimized = false
 	minimizeBtn.MouseButton1Click:Connect(function()
 		isMinimized = not isMinimized
 		if isMinimized then
 			minimizeBtn.Text = "+"
-			contentContainer.Visible = false
-			mainFrame.Size = UDim2.new(0, 380, 0, 40)
+			Scroll.Visible = false
+			Main.Size = UDim2.new(0, 280, 0, 32)
 		else
 			minimizeBtn.Text = "-"
-			contentContainer.Visible = true
-			mainFrame.Size = UDim2.new(0, 380, 0, 410)
+			Scroll.Visible = true
+			Main.Size = UDim2.new(0, 280, 0, 340)
 		end
 	end)
 
-	local function createSectionTitle(text, posY, posX)
-		local lbl = Instance.new("TextLabel")
-		lbl.Size = UDim2.new(0, 160, 0, 20)
-		lbl.Position = UDim2.new(0, posX, 0, posY)
+	local function createSectionHeader(text, order)
+		local lbl = Instance.new("TextLabel", Scroll)
+		lbl.Size = UDim2.new(1, -16, 0, 16)
 		lbl.BackgroundTransparency = 1
-		lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-		lbl.TextSize = 13
-		lbl.Font = Enum.Font.SourceSansBold
+		lbl.TextColor3 = Color3.fromRGB(255, 180, 100)
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextSize = 9
 		lbl.Text = text
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
-		lbl.Parent = contentContainer
+		lbl.LayoutOrder = order
 		return lbl
 	end
 
-	local function createButton(name, text, posX, posY, defaultColor)
-		local btn = Instance.new("TextButton")
-		btn.Name = name
-		btn.Size = UDim2.new(0, 165, 0, 30)
-		btn.Position = UDim2.new(0, posX, 0, posY)
-		btn.BackgroundColor3 = defaultColor
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.TextSize = 12
-		btn.Font = Enum.Font.SourceSansBold
+	local function createButton(text, callback, order)
+		local btn = Instance.new("TextButton", Scroll)
+		btn.Size = UDim2.new(1, -16, 0, 24)
+		btn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+		btn.TextColor3 = Color3.fromRGB(230, 230, 230)
+		btn.TextSize = 9
+		btn.Font = Enum.Font.GothamSemibold
 		btn.Text = text
-		btn.Parent = contentContainer
+		btn.LayoutOrder = order
+		btn.BorderSizePixel = 0
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 6)
-		corner.Parent = btn
+		local stroke = Instance.new("UIStroke", btn)
+		stroke.Color = Color3.fromRGB(50, 50, 60)
+		stroke.Transparency = 0.5
+
+		btn.MouseButton1Click:Connect(callback)
 		return btn
 	end
 
-	createSectionTitle("⚙️ ระบบทั่วไป", 10, 15)
-	local btnCutTree = createButton("BtnCutTree", "ตัดไม้อัตโนมัติ: ปิด", 15, 35, Color3.fromRGB(45, 45, 45))
-	local btnKill = createButton("BtnKill", "ฆ่ามอนสเตอร์: ปิด", 15, 72, Color3.fromRGB(45, 45, 45))
-	local btnEscape = createButton("BtnEscape", "หนีเลือดน้อย: เปิด", 15, 109, Color3.fromRGB(46, 204, 113))
-	local btnNoDark = createButton("BtnNoDark", "แก้ความมืด: เปิด", 15, 146, Color3.fromRGB(46, 204, 113))
+	local function createToggle(name, default, callback, order)
+		local Btn = Instance.new("TextButton", Scroll)
+		Btn.Size = UDim2.new(1, -16, 0, 24)
+		Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+		Btn.Text = "  " .. name
+		Btn.TextColor3 = Color3.fromRGB(230, 230, 230)
+		Btn.Font = Enum.Font.GothamSemibold
+		Btn.TextSize = 9
+		Btn.TextXAlignment = Enum.TextXAlignment.Left
+		Btn.LayoutOrder = order
+		Btn.BorderSizePixel = 0
+		Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
 
-	local percentBox = Instance.new("TextBox")
-	percentBox.Name = "PercentBox"
-	percentBox.Size = UDim2.new(0, 165, 0, 30)
-	percentBox.Position = UDim2.new(0, 15, 0, 183)
-	percentBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	percentBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-	percentBox.TextSize = 12
-	percentBox.Font = Enum.Font.SourceSansBold
-	percentBox.Text = "ดรอปกองไฟ: 50%"
-	percentBox.ClearTextOnFocus = false
-	percentBox.Parent = contentContainer
+		local stroke = Instance.new("UIStroke", Btn)
+		stroke.Color = Color3.fromRGB(50, 50, 60)
+		stroke.Transparency = 0.5
 
-	local uiCornerPercent = Instance.new("UICorner")
-	uiCornerPercent.CornerRadius = UDim.new(0, 6)
-	uiCornerPercent.Parent = percentBox
+		local Sw = Instance.new("Frame", Btn)
+		Sw.Size = UDim2.new(0, 24, 0, 12)
+		Sw.Position = UDim2.new(1, -30, 0.5, -6)
+		Sw.BackgroundColor3 = default and Color3.fromRGB(255, 110, 50) or Color3.fromRGB(45, 45, 50)
+		Instance.new("UICorner", Sw).CornerRadius = UDim.new(1, 0)
 
-	createSectionTitle("📦 วาร์ปทีละ 3 ชิ้น", 10, 200)
-	local btnTpLog = createButton("BtnTpLog", "วาร์ปท่อนไม้ (3 ชิ้น)", 200, 35, Color3.fromRGB(52, 152, 219))
-	local btnTpCarrotBerry = createButton("BtnTpCarrotBerry", "วาร์ปแครอท/เบอร์รี่ (3 ชิ้น)", 200, 72, Color3.fromRGB(52, 152, 219))
-	local btnTpFanRadio = createButton("BtnTpFanRadio", "วาร์ปพัดลม/วิทยุ (3 ชิ้น)", 200, 109, Color3.fromRGB(52, 152, 219))
-	local btnTpCoal = createButton("BtnTpCoal", "วาร์ปถ่าน (3 ชิ้น)", 200, 146, Color3.fromRGB(52, 152, 219))
-	local btnTpMeat = createButton("BtnTpMeat", "วาร์ปเนื้อสัตว์ (3 ชิ้น)", 200, 183, Color3.fromRGB(52, 152, 219))
+		local Circle = Instance.new("Frame", Sw)
+		Circle.Size = UDim2.new(0, 8, 0, 8)
+		Circle.Position = default and UDim2.new(1, -10, 0.5, -4) or UDim2.new(0, 2, 0.5, -4)
+		Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
 
-	local statusLabel = Instance.new("TextLabel")
-	statusLabel.Size = UDim2.new(0, 230, 0, 30)
-	statusLabel.Position = UDim2.new(0, 15, 0, 325)
-	statusLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-	statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	statusLabel.TextSize = 12
-	statusLabel.Font = Enum.Font.SourceSans
-	statusLabel.Text = "สถานะ: พร้อมใช้งาน"
-	statusLabel.Parent = contentContainer
-	state.statusText = statusLabel
-
-	local uiCornerStatus = Instance.new("UICorner")
-	uiCornerStatus.CornerRadius = UDim.new(0, 6)
-	uiCornerStatus.Parent = statusLabel
-
-	local deleteButton = createButton("BtnDelete", "ปิดสคริปต์", 255, 325, Color3.fromRGB(192, 57, 43))
-	deleteButton.Size = UDim2.new(0, 110, 0, 30)
-
-	btnTpLog.MouseButton1Click:Connect(function()
-		local count = TriggerTeleport("Log")
-		if state.statusText then state.statusText.Text = "วาร์ปท่อนไม้สำเร็จ (" .. count .. " ชิ้น)" end
-	end)
-
-	btnTpCarrotBerry.MouseButton1Click:Connect(function()
-		local count = TriggerTeleport("CarrotBerry")
-		if state.statusText then state.statusText.Text = "วาร์ปผักผลไม้สำเร็จ (" .. count .. " ชิ้น)" end
-	end)
-
-	btnTpFanRadio.MouseButton1Click:Connect(function()
-		local count = TriggerTeleport("FanRadio")
-		if state.statusText then state.statusText.Text = "วาร์ปพัดลม/วิทยุสำเร็จ (" .. count .. " ชิ้น)" end
-	end)
-
-	btnTpCoal.MouseButton1Click:Connect(function()
-		local count = TriggerTeleport("Coal")
-		if state.statusText then state.statusText.Text = "วาร์ปถ่านสำเร็จ (" .. count .. " ชิ้น)" end
-	end)
-
-	btnTpMeat.MouseButton1Click:Connect(function()
-		local count = TriggerTeleport("Meat")
-		if state.statusText then state.statusText.Text = "วาร์ปเนื้อสัตว์สำเร็จ (" .. count .. " ชิ้น)" end
-	end)
-
-	percentBox.FocusLost:Connect(function()
-		local num = tonumber(percentBox.Text:match("%d+"))
-		if num then
-			if num < 0 then num = 0 end
-			if num > 100 then num = 100 end
-			state.fireDropPercentage = num
-			percentBox.Text = "ดรอปกองไฟ: " .. num .. "%"
-		else
-			percentBox.Text = "ดรอปกองไฟ: " .. state.fireDropPercentage .. "%"
-		end
-	end)
-
-	local function updateRange()
-		rangeAdornment.Visible = state.isCutTreeEnabled or state.isKillEnabled
+		local stateVal = default
+		Btn.MouseButton1Click:Connect(function()
+			stateVal = not stateVal
+			callback(stateVal)
+			tween(Sw, {BackgroundColor3 = stateVal and Color3.fromRGB(255, 110, 50) or Color3.fromRGB(45, 45, 50)})
+			tween(Circle, {Position = stateVal and UDim2.new(1, -10, 0.5, -4) or UDim2.new(0, 2, 0.5, -4)})
+		end)
+		return Btn
 	end
 
-	btnCutTree.MouseButton1Click:Connect(function()
-		state.isCutTreeEnabled = not state.isCutTreeEnabled
-		btnCutTree.Text = state.isCutTreeEnabled and "ตัดไม้อัตโนมัติ: เปิด" or "ตัดไม้อัตโนมัติ: ปิด"
-		btnCutTree.BackgroundColor3 = state.isCutTreeEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
-		updateRange()
-	end)
+	local function createTextBox(name, defaultText, callback, order)
+		local Frame = Instance.new("Frame", Scroll)
+		Frame.Size = UDim2.new(1, -16, 0, 24)
+		Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+		Frame.LayoutOrder = order
+		Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 6)
 
-	btnKill.MouseButton1Click:Connect(function()
-		state.isKillEnabled = not state.isKillEnabled
-		btnKill.Text = state.isKillEnabled and "ฆ่ามอนสเตอร์: เปิด" or "ฆ่ามอนสเตอร์: ปิด"
-		btnKill.BackgroundColor3 = state.isKillEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
-		updateRange()
-	end)
+		local Label = Instance.new("TextLabel", Frame)
+		Label.Size = UDim2.new(0.6, 0, 1, 0)
+		Label.Position = UDim2.new(0, 8, 0, 0)
+		Label.Text = name
+		Label.TextColor3 = Color3.fromRGB(230, 230, 230)
+		Label.Font = Enum.Font.GothamSemibold
+		Label.TextSize = 9
+		Label.TextXAlignment = Enum.TextXAlignment.Left
+		Label.BackgroundTransparency = 1
 
-	btnEscape.MouseButton1Click:Connect(function()
-		state.isEscapeEnabled = not state.isEscapeEnabled
-		btnEscape.Text = state.isEscapeEnabled and "หนีเลือดน้อย: เปิด" or "หนีเลือดน้อย: ปิด"
-		btnEscape.BackgroundColor3 = state.isEscapeEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
-	end)
+		local Box = Instance.new("TextBox", Frame)
+		Box.Size = UDim2.new(0, 60, 0, 18)
+		Box.Position = UDim2.new(1, -68, 0.5, -9)
+		Box.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+		Box.TextColor3 = Color3.fromRGB(255, 255, 255)
+		Box.TextSize = 9
+		Box.Font = Enum.Font.GothamSemibold
+		Box.Text = tostring(defaultText)
+		Box.ClearTextOnFocus = false
+		Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 4)
 
-	btnNoDark.MouseButton1Click:Connect(function()
-		state.isNoDarkEnabled = not state.isNoDarkEnabled
-		btnNoDark.Text = state.isNoDarkEnabled and "แก้ความมืด: เปิด" or "แก้ความมืด: ปิด"
-		btnNoDark.BackgroundColor3 = state.isNoDarkEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 45)
-		ApplyNoDarkness(state.isNoDarkEnabled)
-	end)
+		Box.FocusLost:Connect(function()
+			callback(Box.Text)
+		end)
+	end
 
-	deleteButton.MouseButton1Click:Connect(function()
-		state.isRunning = false
-		state.isCutTreeEnabled = false
-		state.isKillEnabled = false
-		state.isEscapeEnabled = false
-		state.isNoDarkEnabled = false
-		rangeAdornment:Destroy()
-		ApplyNoDarkness(false)
-		screenGui:Destroy()
-	end)
+	local function createHorizontalGroup(btn1Text, btn1Callback, btn2Text, btn2Callback, order)
+		local Container = Instance.new("Frame", Scroll)
+		Container.Size = UDim2.new(1, -16, 0, 24)
+		Container.BackgroundTransparency = 1
+		Container.LayoutOrder = order
+
+		local btn1 = Instance.new("TextButton", Container)
+		btn1.Size = UDim2.new(0.5, -3, 1, 0)
+		btn1.Position = UDim2.new(0, 0, 0, 0)
+		btn1.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+		btn1.TextColor3 = Color3.fromRGB(230, 230, 230)
+		btn1.TextSize = 9
+		btn1.Font = Enum.Font.GothamSemibold
+		btn1.Text = btn1Text
+		btn1.BorderSizePixel = 0
+		Instance.new("UICorner", btn1).CornerRadius = UDim.new(0, 6)
+		local stroke1 = Instance.new("UIStroke", btn1)
+		stroke1.Color = Color3.fromRGB(50, 50, 60)
+		stroke1.Transparency = 0.5
+		btn1.MouseButton1Click:Connect(btn1Callback)
+
+		local btn2 = Instance.new("TextButton", Container)
+		btn2.Size = UDim2.new(0.5, -3, 1, 0)
+		btn2.Position = UDim2.new(0.5, 3, 0, 0)
+		btn2.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+		btn2.TextColor3 = Color3.fromRGB(230, 230, 230)
+		btn2.TextSize = 9
+		btn2.Font = Enum.Font.GothamSemibold
+		btn2.Text = btn2Text
+		btn2.BorderSizePixel = 0
+		Instance.new("UICorner", btn2).CornerRadius = UDim.new(0, 6)
+		local stroke2 = Instance.new("UIStroke", btn2)
+		stroke2.Color = Color3.fromRGB(50, 50, 60)
+		stroke2.Transparency = 0.5
+		btn2.MouseButton1Click:Connect(btn2Callback)
+	end
+
+	createSectionHeader("ระบบทั่วไป", 1)
+	createToggle("ตัดไม้อัตโนมัติ", false, function(s)
+		state.isCutTreeEnabled = s
+	end, 2)
+	createToggle("ฆ่ามอนสเตอร์", false, function(s)
+		state.isKillEnabled = s
+	end, 3)
+	createToggle("หนีเลือดน้อย", true, function(s)
+		state.isEscapeEnabled = s
+	end, 4)
+	createToggle("แก้ความมืด", true, function(s)
+		state.isNoDarkEnabled = s
+		ApplyNoDarkness(s)
+	end, 5)
+
+	createTextBox("ดรอปกองไฟ (%)", state.fireDropPercentage, function(txt)
+		local num = tonumber(txt:match("%d+"))
+		if num then
+			num = math.clamp(num, 0, 100)
+			state.fireDropPercentage = num
+		end
+	end, 6)
+
+	createSectionHeader("วาร์ปไอเทม (3 ชิ้น)", 7)
+	createHorizontalGroup("วาร์ปท่อนไม้", function()
+		local count = TriggerTeleport("Log")
+		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปท่อนไม้สำเร็จ (" .. count .. " ชิ้น)" end
+	end, "วาร์ปผักผลไม้", function()
+		local count = TriggerTeleport("CarrotBerry")
+		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปผักผลไม้สำเร็จ (" .. count .. " ชิ้น)" end
+	end, 8)
+
+	createHorizontalGroup("วาร์ปพัดลม/วิทยุ", function()
+		local count = TriggerTeleport("FanRadio")
+		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปพัดลม/วิทยุสำเร็จ (" .. count .. " ชิ้น)" end
+	end, "วาร์ปถ่าน", function()
+		local count = TriggerTeleport("Coal")
+		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปถ่านสำเร็จ (" .. count .. " ชิ้น)" end
+	end, 9)
+
+	createButton("วาร์ปเนื้อสัตว์", function()
+		local count = TriggerTeleport("Meat")
+		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปเนื้อสัตว์สำเร็จ (" .. count .. " ชิ้น)" end
+	end, 10)
+
+	local statusLabel = Instance.new("TextLabel", Scroll)
+	statusLabel.Size = UDim2.new(1, -16, 0, 24)
+	statusLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	statusLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+	statusLabel.TextSize = 9
+	statusLabel.Font = Enum.Font.GothamSemibold
+	statusLabel.Text = "สถานะ: พร้อมใช้งาน"
+	statusLabel.LayoutOrder = 11
+	Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 6)
+	state.statusText = statusLabel
+
+	local function makeDraggable(obj, header)
+		local activeDragInput = nil; local startPos; local dragStart
+		header.InputBegan:Connect(function(i)
+			if (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) then
+				activeDragInput = i; dragStart = i.Position; startPos = obj.Position
+			end
+		end)
+		UserInputService.InputChanged:Connect(function(i)
+			if i == activeDragInput then
+				local d = i.Position - dragStart
+				obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+			end
+		end)
+		UserInputService.InputEnded:Connect(function(i) if i == activeDragInput then activeDragInput = nil end end)
+	end
+	makeDraggable(Main, TopBar)
 end
 
 local function UpdateStatus(text, color)
@@ -507,12 +562,11 @@ local function RunKillMonster(rootPart)
 	if charactersFolder then
 		for _, charModel in ipairs(charactersFolder:GetChildren()) do
 			if charModel.Name == "Bunny" or charModel.Name == "Bee" or charModel.Name == "Wolf" or charModel.Name == "Cultist" then
-				local targetPart = charModel:IsA("Model") and (charModel.PrimaryPart or charModel:FindFirstChildWhichIsA("BasePart")) or (charModel:IsA("BasePart") and child)
-				if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
+				local targetPart = charModel:IsA("Model") and (charModel.PrimaryPart or charModel:FindFirstChildWhichIsA("BasePart")) or (charModel:IsA("BasePart") and charModel)if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
 					if toolDamageRemote then
 						task.spawn(function()
 							pcall(function()
-								local stringID = (charModel.Name == "Cultist") and "4_10404440657" or "91_10404440657"
+								local stringID = (charModel.Name == "Cultist") and "4_10404440657" and "91_10404440657" or "91_10404440657"
 								toolDamageRemote:InvokeServer(charModel, oldAxe, stringID, rootPart.CFrame, false)
 							end)
 						end)
@@ -553,7 +607,7 @@ task.spawn(function()
 				Lighting.GlobalShadows = false
 			end
 
-	local char = player.Character or player.CharacterAdded:Wait()
+			local char = player.Character or player.CharacterAdded:Wait()
 			local rootPart = char:FindFirstChild("HumanoidRootPart")
 			local humanoid = char:FindFirstChild("Humanoid")
 
