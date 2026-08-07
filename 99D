@@ -15,20 +15,27 @@ local CONFIG = {
 	LoopCooldown = 0.05,        
 	LowHealthThreshold = 20,    
 	EscapeCooldown = 12,        
+	WalkSpeed = 16,
+	JumpPower = 50,
 	DropCFrame = CFrame.new(0.685610592, 12.7210665, -1.01981413, -0.333577901, -3.59216372e-08, -0.942722559, -6.71524836e-09, 1, -3.57279859e-08, 0.942722559, -5.5874505e-09, -0.333577901),
-	FireCFrame = CFrame.new(20.3575974, 13.6328154, -5.57021952, -0.963129997, 3.49026124e-08, 0.269036472, 2.53018229e-08, 1, -3.91533135e-08, -0.269036472, -3.09026191e-08, -0.963129997),
-	CarrotBerryCFrame = CFrame.new(-3.6540091, 3.99999976, -13.4546804, 0.712164819, 6.33856914e-08, -0.7020123, -6.16689846e-08, 1, 2.77305823e-08, 0.7020123, 2.35436417e-08, 0.712164819)
+	CarrotBerryCFrame = CFrame.new(-3.6540091, 3.99999976, -13.4546804, 0.712164819, 6.33856914e-08, -0.7020123, -6.16689846e-08, 1, 2.77305823e-08, 0.7020123, 2.35436417e-08, 0.712164819),
+	BandageCFrame = CFrame.new(5.55786705, 3.99999976, -3.20778418, -0.998538494, 6.97383626e-08, -0.0540446267, 7.03096745e-08, 1, -8.66976713e-09, 0.0540446267, -1.24569572e-08, -0.998538494),
+	TreeCFrame = CFrame.new(11.1533813, 3.99999976, -0.791116357, -0.774922192, 3.61535335e-08, -0.632056653, 8.40398258e-08, 1, -4.58357476e-08, 0.632056653, -8.86370657e-08, -0.774922192),
+	FanRadioCFrame = CFrame.new(11.032156, 4.00000095, -4.87896156, 0.680558383, -6.64626185e-08, 0.732693851, 7.82541321e-08, 1, 1.80240587e-08, -0.732693851, 4.50698963e-08, 0.680558383)
 }
 
 local state = {
 	isCutTreeEnabled = false,
 	isKillEnabled = false,
+	isWalkSpeedEnabled = false,
+	isJumpPowerEnabled = false,
 	isEscapeEnabled = true,
 	isNoDarkEnabled = true,
 	isRunning = true,
 	statusText = nil,
 	lastEscapeTick = 0,
-	fireDropPercentage = 50,
+	isAdjustingSlider = false,
+	sliderHideTimer = 0,
 }
 
 local originalLighting = {
@@ -39,17 +46,6 @@ local originalLighting = {
 	OutdoorAmbient = Lighting.OutdoorAmbient,
 	Ambient = Lighting.Ambient
 }
-
-local rangeAdornment = Instance.new("CylinderHandleAdornment")
-rangeAdornment.Name = "FarmRangeVisualizer"
-rangeAdornment.Adornee = Workspace
-rangeAdornment.Radius = CONFIG.FarmDistance
-rangeAdornment.Height = 0.2
-rangeAdornment.Color3 = Color3.fromRGB(255, 110, 50)
-rangeAdornment.Transparency = 0.5
-rangeAdornment.AlwaysOnTop = true
-rangeAdornment.Visible = false
-rangeAdornment.Parent = Workspace
 
 local function ApplyNoDarkness(enabled)
 	pcall(function()
@@ -87,9 +83,9 @@ local function TriggerTeleport(filterType)
 				local targetCFrame = CONFIG.DropCFrame
 
 				if filterType == "Log" then
-					if itemName == "log" then
+					if itemName == "log" or itemName == "fuel canister" then
 						shouldTeleport = true
-						targetCFrame = (math.random(1, 100) <= state.fireDropPercentage) and CONFIG.FireCFrame or CONFIG.DropCFrame
+						targetCFrame = CONFIG.TreeCFrame
 					end
 				elseif filterType == "CarrotBerry" then
 					if itemName == "carrot" or itemName == "berry" then
@@ -97,14 +93,19 @@ local function TriggerTeleport(filterType)
 						targetCFrame = CONFIG.CarrotBerryCFrame
 					end
 				elseif filterType == "FanRadio" then
-					if itemName == "broken fan" or itemName == "old radio" then
+					if itemName == "broken fan" or itemName == "old radio" or itemName == "sheet metal" or itemName == "tyre" or itemName == "broken microwave" then
 						shouldTeleport = true
-						targetCFrame = CONFIG.FireCFrame
+						targetCFrame = CONFIG.FanRadioCFrame
+					end
+				elseif filterType == "Bandage" then
+					if itemName == "bandage" then
+						shouldTeleport = true
+						targetCFrame = CONFIG.BandageCFrame
 					end
 				elseif filterType == "Coal" then
 					if itemName == "coal" then
 						shouldTeleport = true
-						targetCFrame = CONFIG.DropCFrame
+						targetCFrame = CONFIG.TreeCFrame
 					end
 				elseif filterType == "Meat" then
 					if itemName == "morsel" or itemName == "steak" or itemName == "raw meat" or itemName:find("meat") then
@@ -173,13 +174,13 @@ end
 
 local function SetupUI()
 	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "StarfishHub_AutoFarm"
+	screenGui.Name = "Event"
 	screenGui.ResetOnSpawn = false
 	screenGui.Parent = CoreGui
 
 	local Main = Instance.new("Frame", screenGui)
-	Main.Size = UDim2.new(0, 280, 0, 340)
-	Main.Position = UDim2.new(0.5, -140, 0.5, -170)
+	Main.Size = UDim2.new(0, 280, 0, 390)
+	Main.Position = UDim2.new(0.5, -140, 0.5, -195)
 	Main.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 	Main.BorderSizePixel = 0
 	Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
@@ -226,9 +227,6 @@ local function SetupUI()
 	unloadBtn.MouseButton1Click:Connect(function()
 		state.isRunning = false
 		ApplyNoDarkness(false)
-		if rangeAdornment then
-			rangeAdornment:Destroy()
-		end
 		screenGui:Destroy()
 	end)
 
@@ -251,7 +249,7 @@ local function SetupUI()
 	Scroll.Size = UDim2.new(1, 0, 1, -32)
 	Scroll.Position = UDim2.new(0, 0, 0, 32)
 	Scroll.BackgroundTransparency = 1
-	Scroll.CanvasSize = UDim2.new(0, 0, 0, 340)
+	Scroll.CanvasSize = UDim2.new(0, 0, 0, 440)
 	Scroll.ScrollBarThickness = 2
 	Scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 110, 50)
 
@@ -270,7 +268,7 @@ local function SetupUI()
 		else
 			minimizeBtn.Text = "-"
 			Scroll.Visible = true
-			Main.Size = UDim2.new(0, 280, 0, 340)
+			Main.Size = UDim2.new(0, 280, 0, 390)
 		end
 	end)
 
@@ -285,26 +283,6 @@ local function SetupUI()
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
 		lbl.LayoutOrder = order
 		return lbl
-	end
-
-	local function createButton(text, callback, order)
-		local btn = Instance.new("TextButton", Scroll)
-		btn.Size = UDim2.new(1, -16, 0, 24)
-		btn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-		btn.TextColor3 = Color3.fromRGB(230, 230, 230)
-		btn.TextSize = 9
-		btn.Font = Enum.Font.GothamSemibold
-		btn.Text = text
-		btn.LayoutOrder = order
-		btn.BorderSizePixel = 0
-		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-		local stroke = Instance.new("UIStroke", btn)
-		stroke.Color = Color3.fromRGB(50, 50, 60)
-		stroke.Transparency = 0.5
-
-		btn.MouseButton1Click:Connect(callback)
-		return btn
 	end
 
 	local function createToggle(name, default, callback, order)
@@ -346,36 +324,62 @@ local function SetupUI()
 		return Btn
 	end
 
-	local function createTextBox(name, defaultText, callback, order)
+	local function createSlider(name, min, max, default, callback, sliderType, order)
 		local Frame = Instance.new("Frame", Scroll)
-		Frame.Size = UDim2.new(1, -16, 0, 24)
+		Frame.Size = UDim2.new(1, -16, 0, 36)
 		Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 		Frame.LayoutOrder = order
 		Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 6)
 
 		local Label = Instance.new("TextLabel", Frame)
-		Label.Size = UDim2.new(0.6, 0, 1, 0)
-		Label.Position = UDim2.new(0, 8, 0, 0)
-		Label.Text = name
+		Label.Size = UDim2.new(1, -16, 0, 16)
+		Label.Position = UDim2.new(0, 8, 0, 2)
+		Label.Text = name .. ": " .. tostring(default)
 		Label.TextColor3 = Color3.fromRGB(230, 230, 230)
 		Label.Font = Enum.Font.GothamSemibold
 		Label.TextSize = 9
 		Label.TextXAlignment = Enum.TextXAlignment.Left
 		Label.BackgroundTransparency = 1
 
-		local Box = Instance.new("TextBox", Frame)
-		Box.Size = UDim2.new(0, 60, 0, 18)
-		Box.Position = UDim2.new(1, -68, 0.5, -9)
-		Box.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-		Box.TextColor3 = Color3.fromRGB(255, 255, 255)
-		Box.TextSize = 9
-		Box.Font = Enum.Font.GothamSemibold
-		Box.Text = tostring(defaultText)
-		Box.ClearTextOnFocus = false
-		Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 4)
+		local SliderBar = Instance.new("Frame", Frame)
+		SliderBar.Size = UDim2.new(1, -16, 0, 6)
+		SliderBar.Position = UDim2.new(0, 8, 0, 24)
+		SliderBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+		SliderBar.BorderSizePixel = 0
+		Instance.new("UICorner", SliderBar).CornerRadius = UDim.new(1, 0)
 
-		Box.FocusLost:Connect(function()
-			callback(Box.Text)
+		local Fill = Instance.new("Frame", SliderBar)
+		Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+		Fill.BackgroundColor3 = Color3.fromRGB(255, 110, 50)
+		Fill.BorderSizePixel = 0
+		Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0)
+
+		local dragging = false
+		local function updateInput(input)
+			local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+			local val = math.floor(min + (max - min) * pos)
+			Fill.Size = UDim2.new(pos, 0, 1, 0)
+			Label.Text = name .. ": " .. tostring(val)
+			callback(val)
+		end
+
+		SliderBar.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				updateInput(input)
+			end
+		end)
+
+		UserInputService.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = false
+			end
+		end)
+
+		UserInputService.InputChanged:Connect(function(input)
+			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				updateInput(input)
+			end
 		end)
 	end
 
@@ -416,50 +420,63 @@ local function SetupUI()
 		btn2.MouseButton1Click:Connect(btn2Callback)
 	end
 
-	createSectionHeader("ระบบทั่วไป", 1)
+	createSectionHeader("Event", 1)
 	createToggle("ตัดไม้อัตโนมัติ", false, function(s)
 		state.isCutTreeEnabled = s
 	end, 2)
-	createToggle("ฆ่ามอนสเตอร์", false, function(s)
+	createToggle("โจมตีมอนสเตอร์", false, function(s)
 		state.isKillEnabled = s
 	end, 3)
-	createToggle("หนีเลือดน้อย", true, function(s)
-		state.isEscapeEnabled = s
+	createToggle("เปิดวิ่งไว", false, function(s)
+		state.isWalkSpeedEnabled = s
 	end, 4)
-	createToggle("แก้ความมืด", true, function(s)
+	createToggle("เปิดกระโดดสูง", false, function(s)
+		state.isJumpPowerEnabled = s
+	end, 5)
+	createToggle("หนีเมื่อเลือดน้อย", true, function(s)
+		state.isEscapeEnabled = s
+	end, 6)
+	createToggle("ลบความมืด (สว่าง)", true, function(s)
 		state.isNoDarkEnabled = s
 		ApplyNoDarkness(s)
-	end, 5)
+	end, 7)
 
-	createTextBox("ดรอปกองไฟ (%)", state.fireDropPercentage, function(txt)
-		local num = tonumber(txt:match("%d+"))
-		if num then
-			num = math.clamp(num, 0, 100)
-			state.fireDropPercentage = num
-		end
-	end, 6)
+	createSlider("ระยะฟาร์ม", 10, 100, CONFIG.FarmDistance, function(val)
+		CONFIG.FarmDistance = val
+	end, "Farm", 8)
 
-	createSectionHeader("วาร์ปไอเทม (3 ชิ้น)", 7)
-	createHorizontalGroup("วาร์ปท่อนไม้", function()
+	createSlider("ความเร็วการเดิน", 16, 150, CONFIG.WalkSpeed, function(val)
+		CONFIG.WalkSpeed = val
+	end, "WalkSpeed", 9)
+
+	createSlider("ความสูงกระโดด", 50, 300, CONFIG.JumpPower, function(val)
+		CONFIG.JumpPower = val
+	end, "JumpPower", 10)
+
+	createSectionHeader("Teleport Items", 11)
+	createHorizontalGroup("เทเลพอร์ตท่อนไม้/ถังน้ำมัน", function()
 		local count = TriggerTeleport("Log")
-		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปท่อนไม้สำเร็จ (" .. count .. " ชิ้น)" end
-	end, "วาร์ปผักผลไม้", function()
+		if state.statusText then state.statusText.Text = "Status: Teleport Log/Canister Success (" .. count .. ")" end
+	end, "เทเลพอร์ตแครอท/เบอร์รี่", function()
 		local count = TriggerTeleport("CarrotBerry")
-		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปผักผลไม้สำเร็จ (" .. count .. " ชิ้น)" end
-	end, 8)
+		if state.statusText then state.statusText.Text = "Status: Teleport Carrot/Berry Success (" .. count .. ")" end
+	end, 12)
 
-	createHorizontalGroup("วาร์ปพัดลม/วิทยุ", function()
+	createHorizontalGroup("เทเลพอร์ตพัดลม/วิทยุ/ยางรถ/ไมโครเวฟ", function()
 		local count = TriggerTeleport("FanRadio")
-		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปพัดลม/วิทยุสำเร็จ (" .. count .. " ชิ้น)" end
-	end, "วาร์ปถ่าน", function()
-		local count = TriggerTeleport("Coal")
-		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปถ่านสำเร็จ (" .. count .. " ชิ้น)" end
-	end, 9)
+		if state.statusText then state.statusText.Text = "Status: Teleport Fan/Radio/Tyre Success (" .. count .. ")" end
+	end, "เทเลพอร์ตผ้าพันแผล", function()
+		local count = TriggerTeleport("Bandage")
+		if state.statusText then state.statusText.Text = "Status: Teleport Bandage Success (" .. count .. ")" end
+	end, 13)
 
-	createButton("วาร์ปเนื้อสัตว์", function()
+	createHorizontalGroup("เทเลพอร์ตถ่าน", function()
+		local count = TriggerTeleport("Coal")
+		if state.statusText then state.statusText.Text = "Status: Teleport Coal Success (" .. count .. ")" end
+	end, "เทเลพอร์ตเนื้อ", function()
 		local count = TriggerTeleport("Meat")
-		if state.statusText then state.statusText.Text = "สถานะ: วาร์ปเนื้อสัตว์สำเร็จ (" .. count .. " ชิ้น)" end
-	end, 10)
+		if state.statusText then state.statusText.Text = "Status: Teleport Meat Success (" .. count .. ")" end
+	end, 14)
 
 	local statusLabel = Instance.new("TextLabel", Scroll)
 	statusLabel.Size = UDim2.new(1, -16, 0, 24)
@@ -468,7 +485,7 @@ local function SetupUI()
 	statusLabel.TextSize = 9
 	statusLabel.Font = Enum.Font.GothamSemibold
 	statusLabel.Text = "สถานะ: พร้อมใช้งาน"
-	statusLabel.LayoutOrder = 11
+	statusLabel.LayoutOrder = 15
 	Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 6)
 	state.statusText = statusLabel
 
@@ -514,7 +531,7 @@ local function CheckLowHealthAndSafety(rootPart, humanoid)
 		if (currentTime - state.lastEscapeTick) >= CONFIG.EscapeCooldown then
 			rootPart.CFrame = CONFIG.DropCFrame
 			state.lastEscapeTick = currentTime 
-			UpdateStatus("สถานะ: เลือดน้อย! วาร์ปหนีแล้ว", Color3.fromRGB(231, 76, 60))
+			UpdateStatus("สถานะ: หนีตายเลือดน้อย!", Color3.fromRGB(231, 76, 60))
 			task.wait(1)
 			return true
 		end
@@ -532,18 +549,16 @@ local function RunCutTree(rootPart)
 	local toolDamageRemote = remoteEvents and remoteEvents:FindFirstChild("ToolDamageObject")
 
 	local foliage = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
-	if foliage then
+	if foliage and toolDamageRemote then
 		for _, child in ipairs(foliage:GetChildren()) do
 			if child.Name == "Small Tree" or child.Name == "Birch Tree" then
-				local treePart = child:IsA("Model") and (child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")) or (child:IsA("BasePart") and child)
+				local treePart = child:IsA"Model") and (child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")) or (child:IsA("BasePart") and child)
 				if treePart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(treePart.Position.X, 0, treePart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
-					if toolDamageRemote then
-						task.spawn(function()
-							pcall(function()
-								toolDamageRemote:InvokeServer(child, oldAxe, "91_10404440657", rootPart.CFrame, false)
-							end)
+					task.spawn(function()
+						pcall(function()
+							toolDamageRemote:InvokeServer(child, oldAxe, "91_10404440657", rootPart.CFrame, false)
 						end)
-					end
+					end)
 				end
 			end
 		end
@@ -556,42 +571,27 @@ local function RunKillMonster(rootPart)
 	if not oldAxe then return end
 
 	local remoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-	local toolDamageRemote = remoteEvents and remoteEvents:FindFirstChild("ToolDamageObject")
+	local toolDamageRemote = remoteEvents and remoteEvents:FindFirstChild("RemoteEvents") and remoteEvents.RemoteEvents:FindFirstChild("ToolDamageObject") or (remoteEvents and remoteEvents:FindFirstChild("ToolDamageObject"))
 
 	local charactersFolder = Workspace:FindFirstChild("Characters")
-	if charactersFolder then
+	if charactersFolder and toolDamageRemote and oldAxe then
 		for _, charModel in ipairs(charactersFolder:GetChildren()) do
-			if charModel.Name == "Bunny" or charModel.Name == "Bee" or charModel.Name == "Wolf" or charModel.Name == "Cultist" then
-				local targetPart = charModel:IsA("Model") and (charModel.PrimaryPart or charModel:FindFirstChildWhichIsA("BasePart")) or (charModel:IsA("BasePart") and charModel)if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
-					if toolDamageRemote then
-						task.spawn(function()
-							pcall(function()
-								local stringID = (charModel.Name == "Cultist") and "4_10404440657" and "91_10404440657" or "91_10404440657"
-								toolDamageRemote:InvokeServer(charModel, oldAxe, stringID, rootPart.CFrame, false)
-							end)
+			if charModel.Name == "Bunny" or charModel.Name == "Bee" or charModel.Name == "Wolf" or charModel.Name == "Cultist" or charModel.Name == "Crossbow Cultist" then
+				local targetPart = charModel:IsA("Model") and (charModel.PrimaryPart or charModel:FindFirstChildWhichIsA("BasePart")) or (charModel:IsA("BasePart") and charModel)
+				if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
+					task.spawn(function()
+						pcall(function()
+							local stringID = "91_10404440657"
+							if charModel.Name == "Cultist" then
+								stringID = "4_10404440657"
+							elseif charModel.Name == "Crossbow Cultist" then
+								stringID = "10_10404440657"
+							end
+							toolDamageRemote:InvokeServer(charModel, oldAxe, stringID, rootPart.CFrame, false)
 						end)
-					end
+					end)
 				end
 			end
-		end
-	end
-
-	local crossbowCultist = charactersFolder and charactersFolder:FindFirstChild("Crossbow Cultist")
-	if crossbowCultist and oldAxe and toolDamageRemote then
-		local targetPart = crossbowCultist:IsA("Model") and (crossbowCultist.PrimaryPart or crossbowCultist:FindFirstChildWhichIsA("BasePart"))
-		if targetPart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(targetPart.Position.X, 0, targetPart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
-			task.spawn(function()
-				pcall(function()
-					local args = {
-						crossbowCultist,
-						oldAxe,
-						"10_10404440657",
-						rootPart.CFrame,
-						false
-					}
-					toolDamageRemote:InvokeServer(unpack(args))
-				end)
-			end)
 		end
 	end
 end
@@ -613,7 +613,18 @@ task.spawn(function()
 
 			if not rootPart or not humanoid then return end
 
-			rangeAdornment.CFrame = rootPart.CFrame * CFrame.new(0, -rootPart.Size.Y/2, 0) * CFrame.Angles(math.rad(90), 0, 0)
+			if state.isWalkSpeedEnabled then
+				humanoid.WalkSpeed = CONFIG.WalkSpeed
+			else
+				humanoid.WalkSpeed = 16
+			end
+
+			if state.isJumpPowerEnabled then
+				humanoid.UseJumpPower = true
+				humanoid.JumpPower = CONFIG.JumpPower
+			else
+				humanoid.JumpPower = 50
+			end
 
 			if CheckLowHealthAndSafety(rootPart, humanoid) then
 				return
@@ -632,9 +643,9 @@ task.spawn(function()
 			end
 
 			if isWorking then
-				UpdateStatus("สถานะ: กำลังทำงานอัตโนมัติ...", Color3.fromRGB(46, 204, 113))
+				UpdateStatus("สถานะ: กำลังทำงาน...", Color3.fromRGB(46, 204, 113))
 			else
-				UpdateStatus("สถานะ: พักการทำงาน (หยุดชั่วคราว)", Color3.fromRGB(189, 195, 199))
+				UpdateStatus("สถานะ: รอคำสั่ง", Color3.fromRGB(189, 195, 199))
 			end
 		end)
 		
