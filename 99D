@@ -552,7 +552,7 @@ local function RunCutTree(rootPart)
 	if foliage and toolDamageRemote then
 		for _, child in ipairs(foliage:GetChildren()) do
 			if child.Name == "Small Tree" or child.Name == "Birch Tree" then
-				local treePart = child:IsA"Model") and (child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")) or (child:IsA("BasePart") and child)
+				local treePart = child:IsA("Model") and (child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")) or (child:IsA("BasePart") and child)
 				if treePart and (Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z) - Vector3.new(treePart.Position.X, 0, treePart.Position.Z)).Magnitude <= CONFIG.FarmDistance then
 					task.spawn(function()
 						pcall(function()
